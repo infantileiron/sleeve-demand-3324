@@ -4,8 +4,8 @@ from sqlalchemy import select
 from src.config.database import get_db
 from src.controllers.auth import current, login, manager, writable
 from src.controllers.export import export
-from src.models.entities import Analysis, Audit, Sleeve, Usage
-from src.schemas.business import AnalysisInput, SleeveInput, UsageInput, Login, Publication
+from src.models.entities import Audit, Sleeve, Usage
+from src.schemas.business import AnalysisInput, Login, Publication, SleeveInput, UsageInput
 from src.services import business as svc
 
 router = APIRouter(prefix='/api')
@@ -49,29 +49,42 @@ def amend(id: int, data: UsageInput, db=Depends(get_db), user=Depends(writable))
     return svc.amend_usage(db, id, data, user)
 
 
-@router.get('/analyses')
-def analyses(db=Depends(get_db), user=Depends(current)):
-    return [svc.record(item, ('snapshot', 'result')) for item in db.scalars(select(Analysis).order_by(Analysis.id.desc()))]
+# 采购组：一份现行建议 = 「规格 + 备料起始周」。页面和下载都读这里。
+@router.get('/recommendations')
+def recommendations(db=Depends(get_db), user=Depends(current)):
+    return svc.list_groups(db)
 
 
-@router.post('/analyses', status_code=202)
+@router.post('/recommendations', status_code=202)
 def enqueue(data: AnalysisInput, db=Depends(get_db), user=Depends(writable)):
     return svc.submit(db, data, user)
 
 
-@router.get('/analyses/{id}')
-def analysis(id: int, db=Depends(get_db), user=Depends(current)):
-    return svc.record(svc.get_analysis(db, id), ('snapshot',))
+@router.get('/recommendations/{id}')
+def recommendation(id: int, db=Depends(get_db), user=Depends(current)):
+    return svc._group_detail(db, svc.get_group(db, id))
 
 
-@router.get('/analyses/{id}/export')
+@router.get('/recommendations/{id}/export')
 def download(id: int, db=Depends(get_db), user=Depends(current)):
-    return export(svc.get_analysis(db, id))
+    bundle = svc.current(db, svc.get_group(db, id))
+    return export(bundle['group'], bundle['latest'], bundle['signature'])
 
 
-@router.post('/analyses/{id}/publish')
+@router.post('/recommendations/{id}/retry', status_code=202)
+def retry(id: int, db=Depends(get_db), user=Depends(writable)):
+    return svc.retry(db, id, user)
+
+
+@router.post('/recommendations/{id}/publish')
 def publish(id: int, data: Publication, db=Depends(get_db), user=Depends(manager)):
     return svc.publish(db, id, data.note, user)
+
+
+# 批次详情：保留失败证据和每批锁定快照，供回查。
+@router.get('/batches/{id}')
+def batch(id: int, db=Depends(get_db), user=Depends(current)):
+    return svc.record(svc.get_analysis(db, id))
 
 
 @router.get('/audits')

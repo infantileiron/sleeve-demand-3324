@@ -38,8 +38,16 @@ class UsageInput(CleanInput):
 class AnalysisInput(CleanInput):
     title: str = Field(min_length=2, max_length=100)
     sleeve_code: str = Field(max_length=32)
+    # 备料起始周：该组从这一周开始备料，训练只用此前的记录。留空取下一条周。
+    start_week: date | None = None
     alpha: float = Field(ge=0.05, le=0.5, default=.2)
     baseline_weeks: int = Field(ge=4, le=16, default=8)
+
+    @model_validator(mode='after')
+    def validate_week(self):
+        if self.start_week is not None and self.start_week.weekday() != 0:
+            raise ValueError('备料起始周必须填星期一')
+        return self
 
 
 class Publication(CleanInput):

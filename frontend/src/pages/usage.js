@@ -13,13 +13,14 @@ export async function usage() {
   const chosen = skus.find(sku => sku.code === selected) || skus[0];
   if (!chosen) return {html:heading('领用周序列','先登记封套规格，再录入领用周。')};
   const rows = await api.usage(chosen.code);
-  const missing = rows.filter(row => row.state === 'missing');
+  const targets = rows.slice(0, 30);
   const form = `<section class="sheet tools"><h2>登记或补报</h2><p>${h(chosen.title)}</p><form id="usage-form">
-    <label>补报目标<select name="amend"><option value="">新周</option>${missing.map(row => `<option value="${row.id}">${h(row.week)}</option>`).join('')}</select></label>
+    <label>补报目标<select name="amend"><option value="">新周</option>${targets.map(row => `<option value="${row.id}" data-week="${h(row.week)}" data-state="${h(row.state)}" data-units="${row.units ?? ''}">${h(row.week)} · ${h(states[row.state])}</option>`).join('')}</select></label>
     <label>周一日期<input name="week" type="date" required></label>
     <label>状态<select name="state"><option value="observed">已核</option><option value="missing">缺传</option></select></label>
     <label>领用张数<input name="units" type="number" min="0" max="10000"></label>
-    <button type="submit">保存领用周</button><p role="alert"></p></form></section>`;
+    <button type="submit">保存领用周</button><p role="alert"></p></form>
+    <p class="notes">补报会改写该规格现行建议的实领误差，并触发所属采购组重算；训练仍只用各起点当时已知的记录。</p></section>`;
   return {
     html:heading('领用周序列', '核定零领用周填 0。缺传周保留空值；预测仅使用最新连续实收周。') +
       `<div class="workarea"><section class="sheet"><h2>领用收据</h2><label class="filter">封套规格<select id="sku">${skus.map(x => `<option value="${h(x.code)}" ${x.code===chosen.code?'selected':''}>${h(x.title)}</option>`).join('')}</select></label>
@@ -28,9 +29,14 @@ export async function usage() {
       root.querySelector('#sku').addEventListener('change', event => { selected = event.target.value; refresh(); });
       const form = root.querySelector('#usage-form');
       form?.elements.amend.addEventListener('change', event => {
-        const row = missing.find(x => String(x.id) === event.target.value);
-        if (row) form.elements.week.value = row.week;
-        form.elements.week.readOnly = Boolean(row);
+        const option = event.target.selectedOptions[0];
+        const id = event.target.value;
+        if (id) {
+          form.elements.week.value = option.dataset.week;
+          form.elements.state.value = option.dataset.state;
+          form.elements.units.value = option.dataset.units;
+        }
+        form.elements.week.readOnly = Boolean(id);
       });
       onForm(form, async data => {
         await api.recordUsage({sleeve_code:chosen.code, week:data.week, state:data.state, units:data.units === '' ? null : Number(data.units)}, data.amend);

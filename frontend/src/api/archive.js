@@ -4,8 +4,9 @@ export const api = {
   sleeves: input => send('/sleeves', input),
   usage: code => send('/usage' + (code ? `?sleeve_code=${encodeURIComponent(code)}` : '')),
   recordUsage: (input, id) => send(id ? `/usage/${id}/amend` : '/usage', input),
-  analyses: input => send('/analyses', input),
-  analysis: id => send(`/analyses/${id}`),
-  publish: (id, note) => send(`/analyses/${id}/publish`, {note}),
-  export: id => send(`/analyses/${id}/export`, undefined, true),
+  recommendations: input => send('/recommendations', input),
+  recommendation: id => send(`/recommendations/${id}`),
+  retry: id => send(`/recommendations/${id}/retry`, {}),
+  publish: (id, note) => send(`/recommendations/${id}/publish`, {note}),
+  export: id => send(`/recommendations/${id}/export`, undefined, true),
 };
